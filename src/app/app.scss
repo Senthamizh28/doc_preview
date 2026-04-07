@@ -1,0 +1,59 @@
+.page-header {
+  margin-bottom: 24px;
+  h1 { font-size: 22px; font-weight: 700; margin: 0; color: #1a1a2e; }
+  p  { color: #888; margin: 4px 0 0; }
+}
+
+.doc-table {
+  background: #fff;
+  border-radius: 8px;
+}
+
+.viewer-page {
+  position: fixed;
+  inset: 0;
+  background: #fff;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+}
+
+.viewer-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 16px;
+  height: 56px;
+  background: #fff;
+  border-bottom: 1px solid #e8e8e8;
+  flex-shrink: 0;
+}
+
+.viewer-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1a2e;
+}
+
+.viewer-loading {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.viewer-wrap {
+  position: relative;
+  flex: 1;
+  height: calc(100vh - 56px);
+}
+
+.toolbar-block {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 200px;
+  height: 52px;
+  z-index: 10;
+  pointer-events: all;
+}

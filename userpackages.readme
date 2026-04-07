@@ -1,0 +1,100 @@
+# userpackages.readme
+# Packages Used in Secure Document Viewer Project
+
+---
+
+## Frontend — Angular (doc-viewer)
+
+| Package | Version | Purpose |
+|---|---|---|
+| `@angular/core` | ^20.3.0 | Angular framework core |
+| `@angular/common` | ^20.3.0 | Angular common utilities, pipes (DatePipe etc.) |
+| `@angular/compiler` | ^20.3.0 | Angular template compiler |
+| `@angular/forms` | ^20.3.0 | Angular forms support |
+| `@angular/platform-browser` | ^20.3.0 | Browser platform support |
+| `@angular/animations` | ^20.3.18 | Animations support (required by ng-zorro) |
+| `@angular/router` | ^20.3.0 | Angular routing |
+| `ng-zorro-antd` | ^20.4.4 | Ant Design UI components — Table, Button, Modal, Spin, Icon, Tag, Layout |
+| `ngx-doc-viewer` | ^21.0.5 | Document viewer component — renders PDF, DOCX, XLSX, PPTX, images via Google / Office / URL viewers |
+| `rxjs` | ~7.8.0 | Reactive programming — Observable-based HTTP calls |
+| `zone.js` | ~0.15.0 | Angular change detection |
+| `tslib` | ^2.3.0 | TypeScript runtime helpers |
+
+### Frontend Dev Dependencies
+
+| Package | Version | Purpose |
+|---|---|---|
+| `@angular/cli` | ^20.3.22 | Angular CLI — ng serve, ng build |
+| `@angular/build` | ^20.3.22 | Angular application builder |
+| `@angular/compiler-cli` | ^20.3.0 | AOT compiler |
+| `typescript` | ~5.9.2 | TypeScript language |
+
+---
+
+## Backend — Express Server (document-viewer)
+
+| Package | Version | Purpose |
+|---|---|---|
+| `express` | ^5.2.1 | HTTP server and API routing |
+| `cors` | ^2.8.6 | Allow Angular dev server (port 4200) to call the API (port 3000) |
+| `dotenv` | ^17.3.1 | Load environment variables from .env file |
+| `axios` | ^1.13.6 | Fetch file bytes from Supabase signed URL as arraybuffer |
+| `@supabase/supabase-js` | ^2.100.0 | Create short-lived signed URLs and access Supabase Storage |
+| `@neondatabase/serverless` | ^1.0.2 | Query Neon PostgreSQL for document metadata |
+
+---
+
+## How to Install
+
+### Frontend
+```bash
+cd doc-viewer
+npm install
+```
+
+### Backend
+```bash
+cd document-viewer
+npm install
+```
+
+---
+
+## How to Run
+
+### Build Frontend
+```bash
+cd doc-viewer
+ng build
+```
+
+### Start Backend (serves API + built Angular app)
+```bash
+cd document-viewer
+node server.js
+# Open http://localhost:3000
+```
+
+### Development Mode (hot reload)
+```bash
+# Terminal 1
+cd document-viewer
+node server.js
+
+# Terminal 2
+cd doc-viewer
+ng serve
+# Open http://localhost:4200
+```
+
+---
+
+## Environment Variables (.env in document-viewer/)
+
+```
+NEON_DATABASE_URL=your_neon_postgres_connection_string
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+SUPABASE_BUCKET=your_bucket_name
+PORT=3000
+```

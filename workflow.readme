@@ -1,0 +1,262 @@
+# workflow.readme
+# How the Document Viewer Works — Full Flow (Backend to Frontend)
+
+---
+
+## Overview
+
+```
+User opens app
+     │
+     ▼
+Angular calls GET /api/documents
+     │
+     ▼
+Express queries Neon PostgreSQL → returns document list
+     │
+     ▼
+ng-zorro table renders: Name | Type | Date | View (eye icon)
+     │
+     ▼
+User clicks eye icon on a row
+     │
+     ▼
+Angular calls GET /api/preview/:id
+     │
+     ▼
+Express queries DB for supabase_path → creates Supabase signed URL (3600s)
+     │
+     ▼
+Returns JSON { type, title, url }
+     │
+     ▼
+Angular picks the correct viewer based on type:
+  pdf / doc / ppt  → viewer="google"
+  excel / xlsx     → viewer="office"
+  image            → <img> tag directly
+     │
+     ▼
+ngx-doc-viewer renders the file full screen using the signed URL
+```
+
+---
+
+## Step 1 — App Loads: Fetch Document List
+
+### Backend — `server.js`
+```js
+app.get('/api/documents', async (req, res) => {
+  const docs = await sql`SELECT id, title, file_type, created_at FROM documents ORDER BY created_at DESC`;
+  res.json(docs);
+});
+```
+Queries the Neon PostgreSQL database and returns all documents as JSON.
+
+### Frontend — `app.ts`
+```ts
+ngOnInit() {
+  this.http.get<DocRecord[]>('http://localhost:3000/api/documents').subscribe({
+    next: (data) => { this.docs = data; this.tableLoading = false; },
+    error: () => { this.tableLoading = false; },
+  });
+}
+```
+On component init, calls the backend and stores the list in `docs[]`.
+
+### Frontend — `app.html`
+```html
+<nz-table [nzData]="docs" [nzLoading]="tableLoading" nzBordered>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Date</th>
+      <th>View</th>
+    </tr>
+  </thead>
+  <tbody>
+    @for (doc of tbl.data; track doc.id) {
+      <tr>
+        <td>{{ doc.title }}</td>
+        <td><nz-tag [nzColor]="tagColor(doc.file_type)">{{ doc.file_type }}</nz-tag></td>
+        <td>{{ doc.created_at | date: 'dd MMM yyyy' }}</td>
+        <td>
+          <button nz-button nzType="link" (click)="openPreview(doc)">
+            <span nz-icon nzType="eye"></span>
+          </button>
+        </td>
+      </tr>
+    }
+  </tbody>
+</nz-table>
+```
+ng-zorro renders the table. Each row has a colored type tag and an eye icon button.
+
+---
+
+## Step 2 — User Clicks Eye Icon: Fetch Signed URL
+
+### Frontend — `app.ts`
+```ts
+openPreview(doc: DocRecord) {
+  this.modalTitle = doc.title;
+  this.modalLoading = true;
+  this.docUrl = '';
+
+  this.http.get<{ type: string; title: string; url: string }>(
+    `http://localhost:3000/api/preview/${doc.id}`
+  ).subscribe({
+    next: (meta) => {
+      this.docType = meta.type;
+      this.docViewer = meta.type === 'image' ? 'url'
+        : ['excel', 'xlsx', 'xls'].includes(meta.type) ? 'office'
+        : 'google';
+      this.docUrl = meta.url;
+      this.modalLoading = false;
+    },
+  });
+}
+```
+Calls `/api/preview/:id`. When the response comes back it sets:
+- `docUrl` — the Supabase signed URL
+- `docType` — the file type (pdf, word, excel, image etc.)
+- `docViewer` — which ngx-doc-viewer engine to use
+
+### Backend — `server.js`
+```js
+app.get('/api/preview/:id', async (req, res) => {
+  const docs = await sql`SELECT * FROM documents WHERE id = ${id}`;
+  const doc = docs[0];
+  const type = resolveType(doc);       // figures out pdf / excel / word / image etc.
+  const url = await getSignedUrl(doc); // creates a 3600s Supabase signed URL
+  return res.json({ type, title: doc.title, url });
+});
+```
+
+### How `resolveType` works
+```js
+function resolveType(doc) {
+  const fromColumn = (doc.file_type || '').toLowerCase();
+  const fromPath = (doc.supabase_path || '').split('.').pop().toLowerCase();
+  const ext = fromPath || fromColumn;
+  if (['doc', 'docx', 'word'].includes(ext)) return 'word';
+  if (['xls', 'xlsx', 'excel'].includes(ext)) return 'excel';
+  if (['ppt', 'pptx'].includes(ext))          return 'ppt';
+  if (ext === 'pdf')                           return 'pdf';
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'image'].includes(ext)) return 'image';
+  return ext;
+}
+```
+Checks the file extension from `supabase_path` first, then falls back to the `file_type` column.
+
+### How `getSignedUrl` works
+```js
+async function getSignedUrl(doc) {
+  const { data, error } = await supabase.storage
+    .from(process.env.SUPABASE_BUCKET)
+    .createSignedUrl(doc.supabase_path, 3600); // expires in 1 hour
+  return data.signedUrl;
+}
+```
+Creates a temporary signed URL directly from Supabase Storage. The original file URL is never exposed — only this short-lived signed URL is sent to the frontend.
+
+---
+
+## Step 3 — File Renders Full Screen
+
+### Frontend — `app.html`
+```html
+@if (docUrl || modalLoading) {
+  <div class="viewer-page">
+
+    <!-- Back button toolbar -->
+    <div class="viewer-toolbar">
+      <button nz-button (click)="closeModal()">← Back</button>
+      <span>{{ modalTitle }}</span>
+    </div>
+
+    @if (modalLoading) {
+      <nz-spin nzTip="Loading document..."></nz-spin>
+
+    } @else {
+      <div class="viewer-wrap">
+
+        <!-- blocks Google toolbar download/share buttons -->
+        @if (docType !== 'excel') {
+          <div class="toolbar-block"></div>
+        }
+
+        <!-- image renders as <img> -->
+        @if (docType === 'image') {
+          <img [src]="docUrl" />
+
+        <!-- all other types use ngx-doc-viewer -->
+        } @else {
+          <ngx-doc-viewer
+            [url]="docUrl"
+            [viewer]="docViewer"
+            style="width:100%; height:calc(100vh - 56px);"
+          ></ngx-doc-viewer>
+        }
+
+      </div>
+    }
+  </div>
+}
+```
+
+---
+
+## Is `ngx-doc-viewer` Necessary?
+
+**Yes — it is the core rendering engine of the entire viewer.**
+
+Without it, you would need to build your own iframe logic, handle Google Docs viewer URLs manually, manage Office Online viewer URLs, and handle loading/error states yourself.
+
+`ngx-doc-viewer` handles all of this:
+
+| viewer="google" | Wraps the file URL in `https://docs.google.com/viewer?url=...` inside an iframe — works for PDF, DOCX, PPTX |
+|---|---|
+| viewer="office" | Wraps the file URL in `https://view.officeapps.live.com/op/embed.aspx?src=...` — works for XLSX, DOCX, PPTX |
+| viewer="url" | Renders the URL directly in an iframe — used for images |
+
+### Viewer Selection Logic
+```ts
+this.docViewer = meta.type === 'image'                          ? 'url'
+               : ['excel', 'xlsx', 'xls'].includes(meta.type)  ? 'office'
+               : 'google';
+```
+
+| File Type | Viewer Used | Why |
+|---|---|---|
+| pdf | google | Google Docs viewer renders PDFs cleanly |
+| doc / docx / ppt / pptx | google | Google Docs viewer handles all Office formats |
+| xls / xlsx / excel | office | Microsoft Office Online renders Excel better than Google |
+| image (jpg/png/gif etc.) | `<img>` tag | No viewer needed — direct image render |
+
+---
+
+## Security Applied
+
+| What | How |
+|---|---|
+| Ctrl+S, Ctrl+P, Ctrl+U blocked | `@HostListener('document:keydown')` in `app.ts` |
+| Google toolbar download/share buttons hidden | `.toolbar-block` div overlays the top-right corner of the iframe |
+| Signed URL expires in 1 hour | `createSignedUrl(path, 3600)` in `server.js` |
+| Original Supabase file path never sent to browser | Only the signed URL is returned from `/api/preview/:id` |
+
+---
+
+## File Structure (Only What Matters)
+
+```
+doc-viewer/                        ← Angular frontend
+└── src/app/
+    ├── app.ts                     ← Component logic (fetch docs, open preview, viewer selection)
+    ├── app.html                   ← Template (ng-zorro table + ngx-doc-viewer full page)
+    ├── app.scss                   ← Styles (table, viewer page, toolbar block)
+    └── app.config.ts              ← Providers (HttpClient, Animations, ng-zorro icons)
+
+document-viewer/                   ← Express backend
+└── server.js                      ← Two API endpoints: /api/documents + /api/preview/:id
+```

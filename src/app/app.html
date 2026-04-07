@@ -1,0 +1,85 @@
+<!-- TABLE VIEW -->
+@if (!docUrl) {
+  <nz-layout style="min-height: 100vh; background: #f0f2f5;">
+    <nz-content style="padding: 32px;">
+
+      <div class="page-header">
+        <h1>Document Viewer</h1>
+        <p>Click the eye icon to preview any document</p>
+      </div>
+
+      <nz-table
+        #tbl
+        [nzData]="docs"
+        [nzLoading]="tableLoading"
+        nzBordered
+        [nzPageSize]="10"
+        class="doc-table"
+      >
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th nzWidth="120px">Type</th>
+            <th nzWidth="160px">Date</th>
+            <th nzWidth="80px" nzAlign="center">View</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (doc of tbl.data; track doc.id) {
+            <tr>
+              <td>{{ doc.title }}</td>
+              <td>
+                <nz-tag [nzColor]="tagColor(doc.file_type)">
+                  {{ doc.file_type.toUpperCase() }}
+                </nz-tag>
+              </td>
+              <td>{{ doc.created_at | date: 'dd MMM yyyy' }}</td>
+              <td nzAlign="center">
+                <button nz-button nzType="link" (click)="openPreview(doc)">
+                  <span nz-icon nzType="eye" nzTheme="outline"></span>
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </nz-table>
+
+    </nz-content>
+  </nz-layout>
+}
+
+<!-- FULL PAGE VIEWER -->
+@if (docUrl || modalLoading) {
+  <div class="viewer-page">
+    <div class="viewer-toolbar">
+      <button nz-button nzType="default" (click)="closeModal()">
+        <span nz-icon nzType="arrow-left" nzTheme="outline"></span>
+        Back
+      </button>
+      <span class="viewer-title">{{ modalTitle }}</span>
+    </div>
+
+    @if (modalLoading) {
+      <div class="viewer-loading">
+        <nz-spin nzSize="large" nzTip="Loading document..."></nz-spin>
+      </div>
+    } @else {
+      <div class="viewer-wrap">
+        @if (docType !== 'excel') {
+          <div class="toolbar-block"></div>
+        }
+        @if (docType === 'image') {
+          <div style="width:100%;height:calc(100vh - 56px);display:flex;align-items:center;justify-content:center;background:#000;">
+            <img [src]="docUrl" style="max-width:100%;max-height:100%;object-fit:contain;" />
+          </div>
+        } @else {
+          <ngx-doc-viewer
+            [url]="docUrl"
+            [viewer]="docViewer"
+            style="width:100%; height:calc(100vh - 56px); display:block;"
+          ></ngx-doc-viewer>
+        }
+      </div>
+    }
+  </div>
+}
